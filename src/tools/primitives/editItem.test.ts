@@ -244,13 +244,43 @@ describe('editItem generateAppleScript', () => {
       expect(script).toContain('set sequential of foundItem to true');
     });
 
-    it('generates project status update', () => {
+    it('generates project status update for on hold (direct assignment, no mark verb)', () => {
       const script = generateAppleScript({
         itemType: 'project',
         name: 'P',
         newProjectStatus: 'onHold',
       });
       expect(script).toContain('set status of foundItem to on hold status');
+    });
+
+    it('uses mark dropped for project dropped status (not direct assignment)', () => {
+      const script = generateAppleScript({
+        itemType: 'project',
+        name: 'P',
+        newProjectStatus: 'dropped',
+      });
+      expect(script).toContain('mark dropped foundItem');
+      expect(script).not.toContain('set status of foundItem to dropped status');
+    });
+
+    it('uses mark complete for project completed status', () => {
+      const script = generateAppleScript({
+        itemType: 'project',
+        name: 'P',
+        newProjectStatus: 'completed',
+      });
+      expect(script).toContain('mark complete foundItem');
+      expect(script).not.toContain('set status of foundItem to done status');
+    });
+
+    it('uses mark incomplete for project active status (revives dropped/completed)', () => {
+      const script = generateAppleScript({
+        itemType: 'project',
+        name: 'P',
+        newProjectStatus: 'active',
+      });
+      expect(script).toContain('mark incomplete foundItem');
+      expect(script).not.toContain('set status of foundItem to active status');
     });
   });
 });

@@ -376,16 +376,37 @@ export function generateAppleScript(params: EditItemParams): string {
     }
     
     // Update project status
+    // OmniFocus rejects direct `set status of project to <X> status` for several
+    // states ("The status of a project cannot be set to dropped directly. Use the
+    // mark dropped verb instead."). Use `mark X` verbs for active/completed/dropped
+    // (matching the task status path), and only fall back to direct assignment for
+    // `on hold` which has no mark verb.
     if (params.newProjectStatus !== undefined) {
-      const statusValue = params.newProjectStatus === 'active' ? 'active status' : 
-                          params.newProjectStatus === 'completed' ? 'done status' :
-                          params.newProjectStatus === 'dropped' ? 'dropped status' :
-                          'on hold status';
-      script += `
-        -- Update project status
-        set status of foundItem to ${statusValue}
-        set end of changedProperties to "status"
+      if (params.newProjectStatus === 'active') {
+        script += `
+        -- Mark project as active (revives dropped/completed projects)
+        mark incomplete foundItem
+        set end of changedProperties to "status (active)"
 `;
+      } else if (params.newProjectStatus === 'completed') {
+        script += `
+        -- Mark project as completed
+        mark complete foundItem
+        set end of changedProperties to "status (completed)"
+`;
+      } else if (params.newProjectStatus === 'dropped') {
+        script += `
+        -- Mark project as dropped
+        mark dropped foundItem
+        set end of changedProperties to "status (dropped)"
+`;
+      } else if (params.newProjectStatus === 'onHold') {
+        script += `
+        -- Put project on hold (no mark verb exists for on-hold)
+        set status of foundItem to on hold status
+        set end of changedProperties to "status (on hold)"
+`;
+      }
     }
     
     // Move to a new folder (supports nested paths like "Work/Engineering")
