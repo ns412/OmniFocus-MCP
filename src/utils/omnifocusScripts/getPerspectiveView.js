@@ -371,25 +371,42 @@ function getPerspectiveViewByName(perspectiveName, limit = 100) {
 
     let filteredTasks = [];
 
+    // Lifecycle guard: a perspective view should never include tasks the OF UI hides.
+    // OF perspectives apply an availability filter outside the rule tree; the rule
+    // evaluator below only sees the rule tree, so dropped/completed tasks (and tasks
+    // whose containing project is dropped/completed) must be filtered explicitly.
+    var isAlive = function (task) {
+      if (task.completed) return false;
+      if (task.taskStatus === Task.Status.Dropped) return false;
+      var p = task.containingProject;
+      if (p && (p.effectivelyCompleted || p.effectivelyDropped)) return false;
+      return true;
+    };
+
     if (isCustomPerspective && perspectiveRules) {
       flattenedTasks.forEach((task) => {
+        if (!isAlive(task)) return;
         if (evaluateTask(task, perspectiveRules, perspectiveAggregation)) {
           filteredTasks.push(getTaskDetails(task));
         }
       });
     } else {
-      // Use built-in perspective logic for default perspectives
-      if (perspectiveName === "Inbox") {
+      // Use built-in perspective logic for default perspectives.
+      // Dispatch is case-insensitive (input normalization at top of file is also lowercase).
+      // Each branch additionally guards against completed/dropped tasks so a built-in
+      // perspective can never leak those, regardless of how flattenedTasks is populated.
+      var pn = perspectiveName.toLowerCase();
+      if (pn === "inbox") {
         inbox.forEach((task) => {
-          filteredTasks.push(getTaskDetails(task));
+          if (isAlive(task)) filteredTasks.push(getTaskDetails(task));
         });
-      } else if (perspectiveName === "Flagged") {
+      } else if (pn === "flagged") {
         flattenedTasks.forEach((task) => {
-          if (task.flagged && !task.completed) {
+          if (task.flagged && isAlive(task)) {
             filteredTasks.push(getTaskDetails(task));
           }
         });
-      } else if (perspectiveName === "Projects") {
+      } else if (pn === "projects") {
         flattenedProjects.forEach((project) => {
           if (project.status === Project.Status.Active) {
             const projectTask = project.task;
@@ -398,9 +415,10 @@ function getPerspectiveViewByName(perspectiveName, limit = 100) {
             }
           }
         });
-      } else if (perspectiveName === "Tags") {
+      } else if (pn === "tags") {
         flattenedTags.forEach((tag) => {
           tag.remainingTasks.forEach((task) => {
+            if (!isAlive(task)) return;
             const taskDetail = getTaskDetails(task);
             if (!filteredTasks.some((item) => item.id === taskDetail.id)) {
               filteredTasks.push(taskDetail);
@@ -409,7 +427,7 @@ function getPerspectiveViewByName(perspectiveName, limit = 100) {
         });
       } else {
         flattenedTasks.forEach((task) => {
-          if (task.taskStatus === Task.Status.Available && !task.completed) {
+          if (task.taskStatus === Task.Status.Available && isAlive(task)) {
             filteredTasks.push(getTaskDetails(task));
           }
         });
